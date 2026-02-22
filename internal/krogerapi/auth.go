@@ -23,8 +23,13 @@ const (
 	tokenKeyClient = "client_credentials"
 	tokenKeyUser   = "authorization_code"
 	authURL        = "https://api.kroger.com/v1/connect/oauth2/authorize"
-	tokenURL       = "https://api.kroger.com/v1/connect/oauth2/token"
 )
+
+// tokenURL is a var so tests can override it with httptest.Server URLs.
+var tokenURL = "https://api.kroger.com/v1/connect/oauth2/token"
+
+// tokenHTTPClient is the HTTP client used for token exchange. Tests override this.
+var tokenHTTPClient = http.DefaultClient
 
 func oauthConfig(creds *config.Credentials, redirectURL string, scopes ...string) *oauth2.Config {
 	return &oauth2.Config{
@@ -78,7 +83,7 @@ func clientCredentialsExchange(creds *config.Credentials, scope string) (*oauth2
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(creds.ClientID, creds.ClientSecret)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := tokenHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

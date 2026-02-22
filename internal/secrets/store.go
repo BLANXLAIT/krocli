@@ -2,6 +2,8 @@ package secrets
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/99designs/keyring"
@@ -16,14 +18,25 @@ type TokenData struct {
 	TokenType    string    `json:"token_type"`
 }
 
-func openKeyring() (keyring.Keyring, error) {
+// OpenKeyring is the function used to open the keyring. Tests can replace it.
+var OpenKeyring = defaultOpenKeyring
+
+func defaultOpenKeyring() (keyring.Keyring, error) {
 	return keyring.Open(keyring.Config{
-		ServiceName: serviceName,
+		ServiceName:     serviceName,
+		AllowedBackends: []keyring.BackendType{keyring.KeychainBackend, keyring.SecretServiceBackend, keyring.WinCredBackend, keyring.FileBackend},
+		FileDir:         defaultFileDir(),
+		FilePasswordFunc: keyring.FixedStringPrompt("krocli"),
 	})
 }
 
+func defaultFileDir() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".config", serviceName, "keyring")
+}
+
 func StoreToken(key string, t *TokenData) error {
-	kr, err := openKeyring()
+	kr, err := OpenKeyring()
 	if err != nil {
 		return err
 	}
@@ -38,7 +51,7 @@ func StoreToken(key string, t *TokenData) error {
 }
 
 func LoadToken(key string) (*TokenData, error) {
-	kr, err := openKeyring()
+	kr, err := OpenKeyring()
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +67,7 @@ func LoadToken(key string) (*TokenData, error) {
 }
 
 func DeleteToken(key string) error {
-	kr, err := openKeyring()
+	kr, err := OpenKeyring()
 	if err != nil {
 		return err
 	}
