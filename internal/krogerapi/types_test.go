@@ -70,7 +70,9 @@ func TestCartRequest_Marshal(t *testing.T) {
 		t.Fatalf("marshal: %v", err)
 	}
 	var back CartRequest
-	json.Unmarshal(data, &back)
+	if err := json.Unmarshal(data, &back); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
 	if back.Items[0].UPC != "0011110838049" || back.Items[0].Quantity != 2 {
 		t.Errorf("round-trip failed: %+v", back)
 	}

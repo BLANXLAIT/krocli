@@ -19,11 +19,11 @@ func TestPrintJSON(t *testing.T) {
 		t.Fatalf("PrintJSON: %v", err)
 	}
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = old
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 
 	var result map[string]string
 	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
@@ -45,11 +45,11 @@ func TestPrintPlain(t *testing.T) {
 	}
 	PrintPlain(rows)
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = old
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 
 	expected := "a\tb\tc\n1\t2\t3\n"
 	if buf.String() != expected {
