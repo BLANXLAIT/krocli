@@ -44,7 +44,7 @@ func (c *ProductsSearchCmd) Run(flags *RootFlags) error {
 	for _, p := range resp.Data {
 		ui.Info("%s  %s — %s", p.ProductID, p.Brand, p.Description)
 	}
-	fmt.Fprintf(fmtStderr, "%d results\n", len(resp.Data))
+	_, _ = fmt.Fprintf(fmtStderr, "%d results\n", len(resp.Data))
 	return nil
 }
 

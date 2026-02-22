@@ -46,7 +46,7 @@ func (c *LocationsSearchCmd) Run(flags *RootFlags) error {
 	for _, l := range resp.Data {
 		ui.Info("%s  %s — %s, %s %s", l.LocationID, l.Name, l.Address.AddressLine1, l.Address.City, l.Address.State)
 	}
-	fmt.Fprintf(fmtStderr, "%d results\n", len(resp.Data))
+	_, _ = fmt.Fprintf(fmtStderr, "%d results\n", len(resp.Data))
 	return nil
 }
 

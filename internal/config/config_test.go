@@ -12,7 +12,7 @@ func TestSaveAndLoadCredentials(t *testing.T) {
 	tmp := t.TempDir()
 	origHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmp)
-	defer os.Setenv("HOME", origHome)
+	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	creds := &Credentials{
 		ClientID:     "test-id",
@@ -51,8 +51,8 @@ func TestLoadCredentials_InvalidJSON(t *testing.T) {
 	t.Setenv("HOME", tmp)
 
 	dir := filepath.Join(tmp, ".config", "krocli")
-	os.MkdirAll(dir, 0o700)
-	os.WriteFile(filepath.Join(dir, "credentials.json"), []byte("{not json"), 0o600)
+	_ = os.MkdirAll(dir, 0o700)
+	_ = os.WriteFile(filepath.Join(dir, "credentials.json"), []byte("{not json"), 0o600)
 
 	_, err := LoadCredentials()
 	if err == nil {
@@ -65,9 +65,9 @@ func TestLoadCredentials_MissingFields(t *testing.T) {
 	t.Setenv("HOME", tmp)
 
 	dir := filepath.Join(tmp, ".config", "krocli")
-	os.MkdirAll(dir, 0o700)
+	_ = os.MkdirAll(dir, 0o700)
 	data, _ := json.Marshal(Credentials{ClientID: "id-only"})
-	os.WriteFile(filepath.Join(dir, "credentials.json"), data, 0o600)
+	_ = os.WriteFile(filepath.Join(dir, "credentials.json"), data, 0o600)
 
 	_, err := LoadCredentials()
 	if err == nil {

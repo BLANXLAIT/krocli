@@ -17,7 +17,9 @@ func TestAuthCredentialsSetCmd_Run(t *testing.T) {
 		"client_id":     "test-id",
 		"client_secret": "test-secret",
 	})
-	os.WriteFile(credsFile, data, 0o600)
+	if err := os.WriteFile(credsFile, data, 0o600); err != nil {
+		t.Fatalf("write creds: %v", err)
+	}
 
 	cmd := &AuthCredentialsSetCmd{Path: credsFile}
 	flags := &RootFlags{}
@@ -31,7 +33,9 @@ func TestAuthCredentialsSetCmd_Run(t *testing.T) {
 		t.Fatalf("read saved: %v", err)
 	}
 	var creds map[string]string
-	json.Unmarshal(saved, &creds)
+	if err := json.Unmarshal(saved, &creds); err != nil {
+		t.Fatalf("unmarshal saved: %v", err)
+	}
 	if creds["client_id"] != "test-id" {
 		t.Errorf("client_id = %q", creds["client_id"])
 	}
@@ -42,7 +46,9 @@ func TestAuthCredentialsSetCmd_MissingFields(t *testing.T) {
 	t.Setenv("HOME", tmp)
 
 	credsFile := filepath.Join(tmp, "creds.json")
-	os.WriteFile(credsFile, []byte(`{"client_id":"only-id"}`), 0o600)
+	if err := os.WriteFile(credsFile, []byte(`{"client_id":"only-id"}`), 0o600); err != nil {
+		t.Fatalf("write creds: %v", err)
+	}
 
 	cmd := &AuthCredentialsSetCmd{Path: credsFile}
 	flags := &RootFlags{}
