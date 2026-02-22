@@ -51,21 +51,45 @@ func (c *Client) doRequest(method, path string, body io.Reader, tok *oauth2.Toke
 		return nil, err
 	}
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("API %d: %s", resp.StatusCode, string(data))
+		return nil, &APIError{StatusCode: resp.StatusCode, Body: string(data)}
 	}
 	return data, nil
 }
 
-func (c *Client) SearchProducts(term string, locationID string, limit int) (*ProductsResponse, error) {
+type APIError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("API %d: %s", e.StatusCode, e.Body)
+}
+
+func (c *Client) doClientRequest(method, path string, body io.Reader) ([]byte, error) {
 	tok, err := GetClientToken(c.creds)
 	if err != nil {
 		return nil, err
 	}
+	data, err := c.doRequest(method, path, body, tok)
+	if err != nil {
+		if apiErr, ok := err.(*APIError); ok && (apiErr.StatusCode == 401 || apiErr.StatusCode == 403) {
+			ClearClientToken()
+			tok, err = GetClientToken(c.creds)
+			if err != nil {
+				return nil, err
+			}
+			return c.doRequest(method, path, body, tok)
+		}
+	}
+	return data, err
+}
+
+func (c *Client) SearchProducts(term string, locationID string, limit int) (*ProductsResponse, error) {
 	params := url.Values{"filter.term": {term}, "filter.limit": {fmt.Sprint(limit)}}
 	if locationID != "" {
 		params.Set("filter.locationId", locationID)
 	}
-	data, err := c.doRequest("GET", "/products?"+params.Encode(), nil, tok)
+	data, err := c.doClientRequest("GET", "/products?"+params.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -74,11 +98,7 @@ func (c *Client) SearchProducts(term string, locationID string, limit int) (*Pro
 }
 
 func (c *Client) GetProduct(id string) (*ProductsResponse, error) {
-	tok, err := GetClientToken(c.creds)
-	if err != nil {
-		return nil, err
-	}
-	data, err := c.doRequest("GET", "/products/"+id, nil, tok)
+	data, err := c.doClientRequest("GET", "/products/"+id, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -87,10 +107,6 @@ func (c *Client) GetProduct(id string) (*ProductsResponse, error) {
 }
 
 func (c *Client) SearchLocations(zipCode string, radiusMiles int, limit int) (*LocationsResponse, error) {
-	tok, err := GetClientToken(c.creds)
-	if err != nil {
-		return nil, err
-	}
 	params := url.Values{
 		"filter.zipCode.near": {zipCode},
 		"filter.limit":        {fmt.Sprint(limit)},
@@ -98,7 +114,7 @@ func (c *Client) SearchLocations(zipCode string, radiusMiles int, limit int) (*L
 	if radiusMiles > 0 {
 		params.Set("filter.radiusInMiles", fmt.Sprint(radiusMiles))
 	}
-	data, err := c.doRequest("GET", "/locations?"+params.Encode(), nil, tok)
+	data, err := c.doClientRequest("GET", "/locations?"+params.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -107,11 +123,7 @@ func (c *Client) SearchLocations(zipCode string, radiusMiles int, limit int) (*L
 }
 
 func (c *Client) GetLocation(id string) (*LocationsResponse, error) {
-	tok, err := GetClientToken(c.creds)
-	if err != nil {
-		return nil, err
-	}
-	data, err := c.doRequest("GET", "/locations/"+id, nil, tok)
+	data, err := c.doClientRequest("GET", "/locations/"+id, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -120,11 +132,7 @@ func (c *Client) GetLocation(id string) (*LocationsResponse, error) {
 }
 
 func (c *Client) GetChains() (*ChainsResponse, error) {
-	tok, err := GetClientToken(c.creds)
-	if err != nil {
-		return nil, err
-	}
-	data, err := c.doRequest("GET", "/chains", nil, tok)
+	data, err := c.doClientRequest("GET", "/chains", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -133,11 +141,7 @@ func (c *Client) GetChains() (*ChainsResponse, error) {
 }
 
 func (c *Client) GetDepartments() (*DepartmentsResponse, error) {
-	tok, err := GetClientToken(c.creds)
-	if err != nil {
-		return nil, err
-	}
-	data, err := c.doRequest("GET", "/departments", nil, tok)
+	data, err := c.doClientRequest("GET", "/departments", nil)
 	if err != nil {
 		return nil, err
 	}

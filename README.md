@@ -16,17 +16,29 @@ make build    # → bin/krocli
 
 ## Setup
 
-1. Register an app at [developer.kroger.com](https://developer.kroger.com/) to get a client ID and secret.
+### 1. Create a Kroger Developer App
 
-2. Create a JSON file with your credentials:
-   ```json
-   {"client_id": "YOUR_ID", "client_secret": "YOUR_SECRET"}
-   ```
+1. Go to [developer.kroger.com](https://developer.kroger.com/) and sign in (or create an account).
+2. Navigate to **My Apps** and click **Create App**.
+3. Fill in the app details:
+   - **App Name**: anything you like (e.g. "krocli")
+   - **Scopes**: enable `product.compact`, `cart.basic:write`, and `profile.compact`
+   - **Redirect URI**: `http://localhost:8080/callback` (required for `auth login`)
+4. After creation, note your **Client ID** and **Client Secret**.
 
-3. Import them:
-   ```bash
-   krocli auth credentials set /path/to/creds.json
-   ```
+### 2. Import Credentials
+
+Create a JSON file with your credentials:
+
+```json
+{"client_id": "YOUR_CLIENT_ID", "client_secret": "YOUR_CLIENT_SECRET"}
+```
+
+Then import:
+
+```bash
+krocli auth credentials set /path/to/creds.json
+```
 
 Credentials are stored at `~/.config/krocli/credentials.json`. Tokens are stored in your OS keyring.
 

@@ -4,9 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/blanxlait/krocli/internal/config"
@@ -35,6 +39,10 @@ func oauthConfig(creds *config.Credentials, redirectURL string, scopes ...string
 	}
 }
 
+func ClearClientToken() {
+	_ = secrets.DeleteToken(tokenKeyClient)
+}
+
 func GetClientToken(creds *config.Credentials) (*oauth2.Token, error) {
 	td, err := secrets.LoadToken(tokenKeyClient)
 	if err == nil && td.Expiry.After(time.Now()) {
@@ -45,9 +53,7 @@ func GetClientToken(creds *config.Credentials) (*oauth2.Token, error) {
 		}, nil
 	}
 
-	cfg := oauthConfig(creds, "", "product.compact")
-	ctx := context.Background()
-	tok, err := cfg.Exchange(ctx, "", oauth2.SetAuthURLParam("grant_type", "client_credentials"))
+	tok, err := clientCredentialsExchange(creds, "product.compact")
 	if err != nil {
 		return nil, fmt.Errorf("client credentials exchange: %w", err)
 	}
@@ -58,6 +64,45 @@ func GetClientToken(creds *config.Credentials) (*oauth2.Token, error) {
 		Expiry:      tok.Expiry,
 	})
 	return tok, nil
+}
+
+func clientCredentialsExchange(creds *config.Credentials, scope string) (*oauth2.Token, error) {
+	data := url.Values{
+		"grant_type": {"client_credentials"},
+		"scope":      {scope},
+	}
+	req, err := http.NewRequest("POST", tokenURL, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(creds.ClientID, creds.ClientSecret)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("token endpoint %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tokenResp struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		ExpiresIn   int    `json:"expires_in"`
+	}
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return nil, err
+	}
+
+	return &oauth2.Token{
+		AccessToken: tokenResp.AccessToken,
+		TokenType:   tokenResp.TokenType,
+		Expiry:      time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
+	}, nil
 }
 
 func GetUserToken(creds *config.Credentials) (*oauth2.Token, error) {
@@ -93,12 +138,13 @@ func GetUserToken(creds *config.Credentials) (*oauth2.Token, error) {
 }
 
 func LoginFlow(creds *config.Credentials, openURL func(string) error) error {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	const callbackPort = 8080
+	redirectURL := fmt.Sprintf("http://localhost:%d/callback", callbackPort)
+
+	listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", callbackPort))
 	if err != nil {
-		return fmt.Errorf("listen: %w", err)
+		return fmt.Errorf("listen on port %d (is something else using it?): %w", callbackPort, err)
 	}
-	port := listener.Addr().(*net.TCPAddr).Port
-	redirectURL := fmt.Sprintf("http://localhost:%d/callback", port)
 
 	cfg := oauthConfig(creds, redirectURL, "cart.basic:write", "profile.compact")
 
