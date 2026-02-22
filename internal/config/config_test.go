@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -90,5 +91,68 @@ func TestDir_CreatesDirectory(t *testing.T) {
 	}
 	if !info.IsDir() {
 		t.Error("expected directory")
+	}
+}
+
+func TestSaveAndLoadTelegramConfig(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	cfg := &TelegramConfig{BotToken: "bot123:token", ChatID: "456789"}
+	if err := SaveTelegramConfig(cfg); err != nil {
+		t.Fatalf("SaveTelegramConfig: %v", err)
+	}
+
+	loaded, err := LoadTelegramConfig()
+	if err != nil {
+		t.Fatalf("LoadTelegramConfig: %v", err)
+	}
+	if loaded.BotToken != cfg.BotToken {
+		t.Errorf("BotToken = %q, want %q", loaded.BotToken, cfg.BotToken)
+	}
+	if loaded.ChatID != cfg.ChatID {
+		t.Errorf("ChatID = %q, want %q", loaded.ChatID, cfg.ChatID)
+	}
+}
+
+func TestLoadTelegramConfig_NotFound(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	_, err := LoadTelegramConfig()
+	if err == nil {
+		t.Fatal("expected error for missing telegram config")
+	}
+	if !errors.Is(err, ErrNoTelegramConfig) {
+		t.Errorf("expected ErrNoTelegramConfig, got %v", err)
+	}
+}
+
+func TestLoadTelegramConfig_MissingFields(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	dir := filepath.Join(tmp, ".config", "krocli")
+	_ = os.MkdirAll(dir, 0o700)
+	data, _ := json.Marshal(TelegramConfig{BotToken: "token-only"})
+	_ = os.WriteFile(filepath.Join(dir, "telegram.json"), data, 0o600)
+
+	_, err := LoadTelegramConfig()
+	if err == nil {
+		t.Fatal("expected error for missing chat_id")
+	}
+}
+
+func TestLoadTelegramConfig_InvalidJSON(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	dir := filepath.Join(tmp, ".config", "krocli")
+	_ = os.MkdirAll(dir, 0o700)
+	_ = os.WriteFile(filepath.Join(dir, "telegram.json"), []byte("{not json"), 0o600)
+
+	_, err := LoadTelegramConfig()
+	if err == nil {
+		t.Fatal("expected error for invalid JSON")
 	}
 }

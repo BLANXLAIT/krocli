@@ -76,3 +76,54 @@ func SaveCredentials(c *Credentials) error {
 	}
 	return os.WriteFile(path, data, 0o600)
 }
+
+// ErrNoTelegramConfig is returned when no Telegram configuration file is found.
+var ErrNoTelegramConfig = errors.New("no telegram config found")
+
+// TelegramConfig holds the Telegram Bot API credentials for sending login URLs.
+type TelegramConfig struct {
+	BotToken string `json:"bot_token"`
+	ChatID   string `json:"chat_id"`
+}
+
+func TelegramConfigPath() (string, error) {
+	dir, err := Dir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "telegram.json"), nil
+}
+
+func LoadTelegramConfig() (*TelegramConfig, error) {
+	path, err := TelegramConfigPath()
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, ErrNoTelegramConfig
+		}
+		return nil, err
+	}
+	var c TelegramConfig
+	if err := json.Unmarshal(data, &c); err != nil {
+		return nil, err
+	}
+	if c.BotToken == "" || c.ChatID == "" {
+		return nil, fmt.Errorf("telegram config missing bot_token or chat_id")
+	}
+	return &c, nil
+}
+
+func SaveTelegramConfig(c *TelegramConfig) error {
+	path, err := TelegramConfigPath()
+	if err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o600)
+}
