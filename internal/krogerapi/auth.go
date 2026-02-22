@@ -1,6 +1,7 @@
 package krogerapi
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -58,7 +59,12 @@ func GetClientToken(creds *config.Credentials) (*oauth2.Token, error) {
 		}, nil
 	}
 
-	tok, err := clientCredentialsExchange(creds, "product.compact")
+	var tok *oauth2.Token
+	if creds == nil {
+		tok, err = hostedClientCredentialsExchange()
+	} else {
+		tok, err = clientCredentialsExchange(creds, "product.compact")
+	}
 	if err != nil {
 		return nil, fmt.Errorf("client credentials exchange: %w", err)
 	}
@@ -127,8 +133,13 @@ func GetUserToken(creds *config.Credentials) (*oauth2.Token, error) {
 		return nil, fmt.Errorf("token expired and no refresh token; run: krocli auth login")
 	}
 
-	cfg := oauthConfig(creds, "", "cart.basic:write", "profile.compact")
-	tok, err := cfg.TokenSource(context.Background(), &oauth2.Token{RefreshToken: td.RefreshToken}).Token()
+	var tok *oauth2.Token
+	if creds == nil {
+		tok, err = hostedRefreshToken(td.RefreshToken)
+	} else {
+		cfg := oauthConfig(creds, "", "cart.basic:write", "profile.compact")
+		tok, err = cfg.TokenSource(context.Background(), &oauth2.Token{RefreshToken: td.RefreshToken}).Token()
+	}
 	if err != nil {
 		return nil, fmt.Errorf("token refresh failed: %w; run: krocli auth login", err)
 	}
@@ -143,6 +154,9 @@ func GetUserToken(creds *config.Credentials) (*oauth2.Token, error) {
 }
 
 func LoginFlow(creds *config.Credentials, openURL func(string) error) error {
+	if creds == nil {
+		return hostedLoginFlow(openURL)
+	}
 	const callbackPort = 8080
 	redirectURL := fmt.Sprintf("http://localhost:%d/callback", callbackPort)
 
@@ -209,6 +223,137 @@ func LoginFlow(creds *config.Credentials, openURL func(string) error) error {
 		TokenType:    tok.TokenType,
 		Expiry:       tok.Expiry,
 	})
+}
+
+// --- hosted mode functions ---
+
+func hostedClientCredentialsExchange() (*oauth2.Token, error) {
+	resp, err := tokenHTTPClient.Post(config.ProxyBaseURL+"/tokenClient", "application/json", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("hosted token endpoint %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tokenResp struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		ExpiresIn   int    `json:"expires_in"`
+	}
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return nil, err
+	}
+	return &oauth2.Token{
+		AccessToken: tokenResp.AccessToken,
+		TokenType:   tokenResp.TokenType,
+		Expiry:      time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
+	}, nil
+}
+
+func hostedLoginFlow(openURL func(string) error) error {
+	sessionID := generateSessionID()
+
+	loginURL := config.ProxyBaseURL + "/authorize?session_id=" + sessionID
+
+	ui.Info("Opening browser for Kroger login...")
+	if err := openURL(loginURL); err != nil {
+		ui.Warn("Could not open browser. Visit this URL:\n%s", loginURL)
+	}
+
+	deadline := time.After(2 * time.Minute)
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-deadline:
+			return fmt.Errorf("login timed out")
+		case <-ticker.C:
+			tok, err := pollForUserToken(sessionID)
+			if err != nil {
+				continue // still pending
+			}
+			return secrets.StoreToken(tokenKeyUser, &secrets.TokenData{
+				AccessToken:  tok.AccessToken,
+				RefreshToken: tok.RefreshToken,
+				TokenType:    tok.TokenType,
+				Expiry:       tok.Expiry,
+			})
+		}
+	}
+}
+
+func pollForUserToken(sessionID string) (*oauth2.Token, error) {
+	resp, err := tokenHTTPClient.Get(config.ProxyBaseURL + "/tokenUser?session_id=" + sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == 202 {
+		return nil, fmt.Errorf("pending")
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("hosted user token %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tokenResp struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		TokenType    string `json:"token_type"`
+		ExpiresIn    int    `json:"expires_in"`
+	}
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return nil, err
+	}
+	return &oauth2.Token{
+		AccessToken:  tokenResp.AccessToken,
+		RefreshToken: tokenResp.RefreshToken,
+		TokenType:    tokenResp.TokenType,
+		Expiry:       time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
+	}, nil
+}
+
+func hostedRefreshToken(refreshToken string) (*oauth2.Token, error) {
+	payload, _ := json.Marshal(map[string]string{"refresh_token": refreshToken})
+	resp, err := tokenHTTPClient.Post(config.ProxyBaseURL+"/tokenRefresh", "application/json", bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("hosted refresh %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tokenResp struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		TokenType    string `json:"token_type"`
+		ExpiresIn    int    `json:"expires_in"`
+	}
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return nil, err
+	}
+	return &oauth2.Token{
+		AccessToken:  tokenResp.AccessToken,
+		RefreshToken: tokenResp.RefreshToken,
+		TokenType:    tokenResp.TokenType,
+		Expiry:       time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
+	}, nil
+}
+
+func generateSessionID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 func AuthStatus() (clientOK, userOK bool) {

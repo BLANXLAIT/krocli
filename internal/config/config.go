@@ -8,6 +8,19 @@ import (
 	"path/filepath"
 )
 
+const ProxyBaseURL = "https://us-central1-krocli.cloudfunctions.net"
+
+var ErrNoCredentials = errors.New("no credentials file found")
+
+func IsHostedMode() bool {
+	path, err := CredentialsPath()
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(path)
+	return errors.Is(err, os.ErrNotExist)
+}
+
 type Credentials struct {
 	ClientID     string `json:"client_id"`
 	ClientSecret string `json:"client_secret"`
@@ -38,7 +51,7 @@ func LoadCredentials() (*Credentials, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("no credentials found; run: krocli auth credentials set <path>")
+			return nil, ErrNoCredentials
 		}
 		return nil, err
 	}

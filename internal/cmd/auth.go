@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"runtime"
@@ -21,15 +22,21 @@ type AuthLoginCmd struct{}
 
 func (c *AuthLoginCmd) Run(flags *RootFlags) error {
 	creds, err := config.LoadCredentials()
-	if err != nil {
+	if err != nil && !errors.Is(err, config.ErrNoCredentials) {
 		return err
 	}
+	// creds is nil in hosted mode
 	return krogerapi.LoginFlow(creds, openBrowser)
 }
 
 type AuthStatusCmd struct{}
 
 func (c *AuthStatusCmd) Run(flags *RootFlags) error {
+	if config.IsHostedMode() {
+		ui.Info("Mode: hosted")
+	} else {
+		ui.Info("Mode: local")
+	}
 	clientOK, userOK := krogerapi.AuthStatus()
 	if clientOK {
 		ui.Success("Client token: valid")

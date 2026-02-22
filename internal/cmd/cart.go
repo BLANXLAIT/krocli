@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"errors"
+
 	"github.com/blanxlait/krocli/internal/config"
 	"github.com/blanxlait/krocli/internal/krogerapi"
 	"github.com/blanxlait/krocli/internal/ui"
@@ -17,7 +19,7 @@ type CartAddCmd struct {
 
 func (c *CartAddCmd) Run(flags *RootFlags) error {
 	creds, err := config.LoadCredentials()
-	if err != nil {
+	if err != nil && !errors.Is(err, config.ErrNoCredentials) {
 		return err
 	}
 	client := krogerapi.NewClient(creds)

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/blanxlait/krocli/internal/config"
@@ -24,7 +25,7 @@ type LocationsSearchCmd struct {
 
 func (c *LocationsSearchCmd) Run(flags *RootFlags) error {
 	creds, err := config.LoadCredentials()
-	if err != nil {
+	if err != nil && !errors.Is(err, config.ErrNoCredentials) {
 		return err
 	}
 	client := krogerapi.NewClient(creds)
@@ -56,7 +57,7 @@ type LocationsGetCmd struct {
 
 func (c *LocationsGetCmd) Run(flags *RootFlags) error {
 	creds, err := config.LoadCredentials()
-	if err != nil {
+	if err != nil && !errors.Is(err, config.ErrNoCredentials) {
 		return err
 	}
 	client := krogerapi.NewClient(creds)
@@ -77,7 +78,7 @@ type LocationsChainsCmd struct{}
 
 func (c *LocationsChainsCmd) Run(flags *RootFlags) error {
 	creds, err := config.LoadCredentials()
-	if err != nil {
+	if err != nil && !errors.Is(err, config.ErrNoCredentials) {
 		return err
 	}
 	client := krogerapi.NewClient(creds)
@@ -98,7 +99,7 @@ type LocationsDeptCmd struct{}
 
 func (c *LocationsDeptCmd) Run(flags *RootFlags) error {
 	creds, err := config.LoadCredentials()
-	if err != nil {
+	if err != nil && !errors.Is(err, config.ErrNoCredentials) {
 		return err
 	}
 	client := krogerapi.NewClient(creds)

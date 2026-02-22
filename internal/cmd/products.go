@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/blanxlait/krocli/internal/config"
@@ -22,7 +23,7 @@ type ProductsSearchCmd struct {
 
 func (c *ProductsSearchCmd) Run(flags *RootFlags) error {
 	creds, err := config.LoadCredentials()
-	if err != nil {
+	if err != nil && !errors.Is(err, config.ErrNoCredentials) {
 		return err
 	}
 	client := krogerapi.NewClient(creds)
@@ -54,7 +55,7 @@ type ProductsGetCmd struct {
 
 func (c *ProductsGetCmd) Run(flags *RootFlags) error {
 	creds, err := config.LoadCredentials()
-	if err != nil {
+	if err != nil && !errors.Is(err, config.ErrNoCredentials) {
 		return err
 	}
 	client := krogerapi.NewClient(creds)
