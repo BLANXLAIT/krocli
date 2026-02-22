@@ -156,3 +156,49 @@ func TestLoadTelegramConfig_InvalidJSON(t *testing.T) {
 		t.Fatal("expected error for invalid JSON")
 	}
 }
+
+func TestOpenClawIntegration_BothSet(t *testing.T) {
+	t.Setenv("OPENCLAW_BOT_TOKEN", "openclaw-bot:token")
+	t.Setenv("OPENCLAW_CHAT_ID", "99999")
+
+	cfg := OpenClawIntegration()
+	if cfg == nil {
+		t.Fatal("expected non-nil config when both env vars are set")
+	}
+	if cfg.BotToken != "openclaw-bot:token" {
+		t.Errorf("BotToken = %q, want %q", cfg.BotToken, "openclaw-bot:token")
+	}
+	if cfg.ChatID != "99999" {
+		t.Errorf("ChatID = %q, want %q", cfg.ChatID, "99999")
+	}
+}
+
+func TestOpenClawIntegration_OnlyTokenSet(t *testing.T) {
+	t.Setenv("OPENCLAW_BOT_TOKEN", "openclaw-bot:token")
+	t.Setenv("OPENCLAW_CHAT_ID", "")
+
+	cfg := OpenClawIntegration()
+	if cfg != nil {
+		t.Error("expected nil config when only OPENCLAW_BOT_TOKEN is set")
+	}
+}
+
+func TestOpenClawIntegration_OnlyChatIDSet(t *testing.T) {
+	t.Setenv("OPENCLAW_BOT_TOKEN", "")
+	t.Setenv("OPENCLAW_CHAT_ID", "99999")
+
+	cfg := OpenClawIntegration()
+	if cfg != nil {
+		t.Error("expected nil config when only OPENCLAW_CHAT_ID is set")
+	}
+}
+
+func TestOpenClawIntegration_NoneSet(t *testing.T) {
+	t.Setenv("OPENCLAW_BOT_TOKEN", "")
+	t.Setenv("OPENCLAW_CHAT_ID", "")
+
+	cfg := OpenClawIntegration()
+	if cfg != nil {
+		t.Error("expected nil config when no env vars are set")
+	}
+}

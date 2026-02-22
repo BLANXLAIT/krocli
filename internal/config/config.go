@@ -127,3 +127,14 @@ func SaveTelegramConfig(c *TelegramConfig) error {
 	}
 	return os.WriteFile(path, data, 0o600)
 }
+
+// OpenClawIntegration returns a TelegramConfig from the OPENCLAW_BOT_TOKEN and
+// OPENCLAW_CHAT_ID environment variables when both are set, or nil otherwise.
+func OpenClawIntegration() *TelegramConfig {
+	botToken := os.Getenv("OPENCLAW_BOT_TOKEN")
+	chatID := os.Getenv("OPENCLAW_CHAT_ID")
+	if botToken == "" || chatID == "" {
+		return nil
+	}
+	return &TelegramConfig{BotToken: botToken, ChatID: chatID}
+}

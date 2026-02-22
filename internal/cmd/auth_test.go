@@ -184,3 +184,87 @@ func TestSendViaTelegram_TelegramAPIError(t *testing.T) {
 		t.Errorf("error = %q, want blocked message", err.Error())
 	}
 }
+
+func TestSendViaTelegram_OpenClawIntegration(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv("OPENCLAW_BOT_TOKEN", "openclaw-bot:token")
+	t.Setenv("OPENCLAW_CHAT_ID", "55555")
+
+	var receivedToken, receivedText string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Extract bot token from path: /bot<token>/sendMessage
+		parts := strings.Split(r.URL.Path, "/")
+		for _, p := range parts {
+			if strings.HasPrefix(p, "bot") {
+				receivedToken = strings.TrimPrefix(p, "bot")
+			}
+		}
+		_ = r.ParseForm()
+		receivedText = r.FormValue("text")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	origClient := telegram.HTTPClient
+	telegram.HTTPClient = srv.Client()
+	t.Cleanup(func() { telegram.HTTPClient = origClient })
+
+	origBase := telegram.BaseURL
+	telegram.BaseURL = srv.URL
+	t.Cleanup(func() { telegram.BaseURL = origBase })
+
+	if err := sendViaTelegram("https://example.com/login"); err != nil {
+		t.Fatalf("sendViaTelegram: %v", err)
+	}
+	if receivedToken != "openclaw-bot:token" {
+		t.Errorf("bot token = %q, want %q", receivedToken, "openclaw-bot:token")
+	}
+	if !strings.Contains(receivedText, "https://example.com/login") {
+		t.Errorf("message = %q, want login URL", receivedText)
+	}
+}
+
+func TestSendViaTelegram_OpenClawFallsBackToFile(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	// No OpenClaw env vars set
+	t.Setenv("OPENCLAW_BOT_TOKEN", "")
+	t.Setenv("OPENCLAW_CHAT_ID", "")
+
+	// Pre-write a valid telegram config file
+	dir := filepath.Join(tmp, ".config", "krocli")
+	_ = os.MkdirAll(dir, 0o700)
+	cfg := map[string]string{"bot_token": "file-token", "chat_id": "22222"}
+	data, _ := json.Marshal(cfg)
+	_ = os.WriteFile(filepath.Join(dir, "telegram.json"), data, 0o600)
+
+	var receivedToken string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.Split(r.URL.Path, "/")
+		for _, p := range parts {
+			if strings.HasPrefix(p, "bot") {
+				receivedToken = strings.TrimPrefix(p, "bot")
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	origClient := telegram.HTTPClient
+	telegram.HTTPClient = srv.Client()
+	t.Cleanup(func() { telegram.HTTPClient = origClient })
+
+	origBase := telegram.BaseURL
+	telegram.BaseURL = srv.URL
+	t.Cleanup(func() { telegram.BaseURL = origBase })
+
+	if err := sendViaTelegram("https://example.com/login"); err != nil {
+		t.Fatalf("sendViaTelegram: %v", err)
+	}
+	if receivedToken != "file-token" {
+		t.Errorf("bot token = %q, want %q", receivedToken, "file-token")
+	}
+}
