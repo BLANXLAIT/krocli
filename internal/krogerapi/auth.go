@@ -87,7 +87,7 @@ func clientCredentialsExchange(creds *config.Credentials, scope string) (*oauth2
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
@@ -179,7 +179,7 @@ func LoginFlow(creds *config.Credentials, openURL func(string) error) error {
 			http.Error(w, "no code", http.StatusBadRequest)
 			return
 		}
-		fmt.Fprintf(w, "<html><body><h1>Success!</h1><p>You can close this tab.</p></body></html>")
+		_, _ = fmt.Fprintf(w, "<html><body><h1>Success!</h1><p>You can close this tab.</p></body></html>")
 		codeCh <- code
 	})
 

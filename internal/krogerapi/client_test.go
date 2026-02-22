@@ -62,7 +62,7 @@ func newTokenServer(t *testing.T) (*httptest.Server, *atomic.Int32) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token": "tok-" + string(rune('A'-1+n)),
 			"token_type":   "bearer",
 			"expires_in":   1800,
@@ -195,11 +195,11 @@ func TestDoClientRequest_RetryOn403(t *testing.T) {
 		n := apiCalls.Add(1)
 		if n == 1 {
 			w.WriteHeader(403)
-			w.Write([]byte(`{"code":"AUTH-1007","reason":"Invalid token"}`))
+			_, _ = w.Write([]byte(`{"code":"AUTH-1007","reason":"Invalid token"}`))
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": []map[string]string{{"productId": "123", "description": "Test"}},
 			"meta": map[string]any{"pagination": map[string]any{"start": 0, "limit": 1, "total": 1}},
 		})
@@ -235,7 +235,7 @@ func TestDoClientRequest_NoRetryOn500(t *testing.T) {
 	apiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		apiCalls.Add(1)
 		w.WriteHeader(500)
-		w.Write([]byte(`{"reason":"server error"}`))
+		_, _ = w.Write([]byte(`{"reason":"server error"}`))
 	}))
 	defer apiSrv.Close()
 
@@ -264,7 +264,7 @@ func TestDoRequest_SetsHeaders(t *testing.T) {
 		gotAuth = r.Header.Get("Authorization")
 		gotAccept = r.Header.Get("Accept")
 		gotContentType = r.Header.Get("Content-Type")
-		w.Write([]byte("{}"))
+		_, _ = w.Write([]byte("{}"))
 	}))
 	defer srv.Close()
 
@@ -303,7 +303,7 @@ func TestSearchProducts_ParsesResponse(t *testing.T) {
 			t.Errorf("filter.limit = %q", r.URL.Query().Get("filter.limit"))
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(ProductsResponse{
+		_ = json.NewEncoder(w).Encode(ProductsResponse{
 			Data: []Product{{ProductID: "001", Brand: "Kroger", Description: "Milk"}},
 			Meta: Meta{Pagination: Pagination{Total: 1, Limit: 5}},
 		})
@@ -340,7 +340,7 @@ func TestSearchLocations_IncludesRadius(t *testing.T) {
 			t.Errorf("radius = %q", r.URL.Query().Get("filter.radiusInMiles"))
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(LocationsResponse{
+		_ = json.NewEncoder(w).Encode(LocationsResponse{
 			Data: []Location{{LocationID: "014", Name: "Kroger Downtown"}},
 		})
 	}))
@@ -372,7 +372,7 @@ func TestAddToCart_SendsPUT(t *testing.T) {
 	var gotBody map[string]any
 	apiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotMethod = r.Method
-		json.NewDecoder(r.Body).Decode(&gotBody)
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
 		w.WriteHeader(204)
 	}))
 	defer apiSrv.Close()
