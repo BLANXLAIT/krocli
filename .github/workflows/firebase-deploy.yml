@@ -1,0 +1,44 @@
+name: Deploy Firebase Functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'firebase/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      WIF_PROVIDER: projects/146869023108/locations/global/workloadIdentityPools/github-pool/providers/github-oidc-v2
+      WIF_SERVICE_ACCOUNT: github-ci@github-ci-blanxlait.iam.gserviceaccount.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: firebase/functions/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: firebase/functions
+
+      - name: Build
+        run: npm run build
+        working-directory: firebase/functions
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SERVICE_ACCOUNT }}
+          project_id: krocli
+
+      - name: Deploy to Firebase
+        run: npx firebase-tools deploy --only functions,firestore:rules --project krocli --force
