@@ -1,0 +1,171 @@
+package krogerapi
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"net"
+	"net/http"
+	"time"
+
+	"github.com/blanxlait/krocli/internal/config"
+	"github.com/blanxlait/krocli/internal/secrets"
+	"github.com/blanxlait/krocli/internal/ui"
+	"golang.org/x/oauth2"
+)
+
+const (
+	tokenKeyClient = "client_credentials"
+	tokenKeyUser   = "authorization_code"
+	authURL        = "https://api.kroger.com/v1/connect/oauth2/authorize"
+	tokenURL       = "https://api.kroger.com/v1/connect/oauth2/token"
+)
+
+func oauthConfig(creds *config.Credentials, redirectURL string, scopes ...string) *oauth2.Config {
+	return &oauth2.Config{
+		ClientID:     creds.ClientID,
+		ClientSecret: creds.ClientSecret,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  authURL,
+			TokenURL: tokenURL,
+		},
+		RedirectURL: redirectURL,
+		Scopes:      scopes,
+	}
+}
+
+func GetClientToken(creds *config.Credentials) (*oauth2.Token, error) {
+	td, err := secrets.LoadToken(tokenKeyClient)
+	if err == nil && td.Expiry.After(time.Now()) {
+		return &oauth2.Token{
+			AccessToken: td.AccessToken,
+			TokenType:   td.TokenType,
+			Expiry:      td.Expiry,
+		}, nil
+	}
+
+	cfg := oauthConfig(creds, "", "product.compact")
+	ctx := context.Background()
+	tok, err := cfg.Exchange(ctx, "", oauth2.SetAuthURLParam("grant_type", "client_credentials"))
+	if err != nil {
+		return nil, fmt.Errorf("client credentials exchange: %w", err)
+	}
+
+	_ = secrets.StoreToken(tokenKeyClient, &secrets.TokenData{
+		AccessToken: tok.AccessToken,
+		TokenType:   tok.TokenType,
+		Expiry:      tok.Expiry,
+	})
+	return tok, nil
+}
+
+func GetUserToken(creds *config.Credentials) (*oauth2.Token, error) {
+	td, err := secrets.LoadToken(tokenKeyUser)
+	if err != nil {
+		return nil, fmt.Errorf("not logged in; run: krocli auth login")
+	}
+	if td.Expiry.After(time.Now()) {
+		return &oauth2.Token{
+			AccessToken:  td.AccessToken,
+			RefreshToken: td.RefreshToken,
+			TokenType:    td.TokenType,
+			Expiry:       td.Expiry,
+		}, nil
+	}
+	if td.RefreshToken == "" {
+		return nil, fmt.Errorf("token expired and no refresh token; run: krocli auth login")
+	}
+
+	cfg := oauthConfig(creds, "", "cart.basic:write", "profile.compact")
+	tok, err := cfg.TokenSource(context.Background(), &oauth2.Token{RefreshToken: td.RefreshToken}).Token()
+	if err != nil {
+		return nil, fmt.Errorf("token refresh failed: %w; run: krocli auth login", err)
+	}
+
+	_ = secrets.StoreToken(tokenKeyUser, &secrets.TokenData{
+		AccessToken:  tok.AccessToken,
+		RefreshToken: tok.RefreshToken,
+		TokenType:    tok.TokenType,
+		Expiry:       tok.Expiry,
+	})
+	return tok, nil
+}
+
+func LoginFlow(creds *config.Credentials, openURL func(string) error) error {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return fmt.Errorf("listen: %w", err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	redirectURL := fmt.Sprintf("http://localhost:%d/callback", port)
+
+	cfg := oauthConfig(creds, redirectURL, "cart.basic:write", "profile.compact")
+
+	stateBytes := make([]byte, 16)
+	_, _ = rand.Read(stateBytes)
+	state := hex.EncodeToString(stateBytes)
+
+	url := cfg.AuthCodeURL(state, oauth2.AccessTypeOffline)
+	ui.Info("Opening browser for Kroger login...")
+	if err := openURL(url); err != nil {
+		ui.Warn("Could not open browser. Visit this URL:\n%s", url)
+	}
+
+	codeCh := make(chan string, 1)
+	errCh := make(chan error, 1)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("state") != state {
+			errCh <- fmt.Errorf("state mismatch")
+			http.Error(w, "state mismatch", http.StatusBadRequest)
+			return
+		}
+		code := r.URL.Query().Get("code")
+		if code == "" {
+			errCh <- fmt.Errorf("no code in callback")
+			http.Error(w, "no code", http.StatusBadRequest)
+			return
+		}
+		fmt.Fprintf(w, "<html><body><h1>Success!</h1><p>You can close this tab.</p></body></html>")
+		codeCh <- code
+	})
+
+	srv := &http.Server{Handler: mux}
+	go func() { _ = srv.Serve(listener) }()
+
+	var code string
+	select {
+	case code = <-codeCh:
+	case err := <-errCh:
+		_ = srv.Close()
+		return err
+	case <-time.After(2 * time.Minute):
+		_ = srv.Close()
+		return fmt.Errorf("login timed out")
+	}
+	_ = srv.Close()
+
+	tok, err := cfg.Exchange(context.Background(), code)
+	if err != nil {
+		return fmt.Errorf("token exchange: %w", err)
+	}
+
+	return secrets.StoreToken(tokenKeyUser, &secrets.TokenData{
+		AccessToken:  tok.AccessToken,
+		RefreshToken: tok.RefreshToken,
+		TokenType:    tok.TokenType,
+		Expiry:       tok.Expiry,
+	})
+}
+
+func AuthStatus() (clientOK, userOK bool) {
+	if td, err := secrets.LoadToken(tokenKeyClient); err == nil && td.Expiry.After(time.Now()) {
+		clientOK = true
+	}
+	if td, err := secrets.LoadToken(tokenKeyUser); err == nil && (td.Expiry.After(time.Now()) || td.RefreshToken != "") {
+		userOK = true
+	}
+	return
+}
