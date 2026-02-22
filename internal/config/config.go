@@ -127,3 +127,21 @@ func SaveTelegramConfig(c *TelegramConfig) error {
 	}
 	return os.WriteFile(path, data, 0o600)
 }
+
+// OpenClawEnvBotToken and OpenClawEnvChatID are the environment variables set
+// by an OpenClaw bot orchestrator to enable native integration mode.
+const OpenClawEnvBotToken = "OPENCLAW_BOT_TOKEN"
+const OpenClawEnvChatID = "OPENCLAW_CHAT_ID"
+
+// OpenClawIntegration returns a TelegramConfig sourced from environment
+// variables when krocli is running under an OpenClaw bot orchestrator.
+// It returns nil when the required environment variables are not set,
+// signalling that the caller should fall back to standalone behaviour.
+func OpenClawIntegration() *TelegramConfig {
+	token := os.Getenv(OpenClawEnvBotToken)
+	chatID := os.Getenv(OpenClawEnvChatID)
+	if token == "" || chatID == "" {
+		return nil
+	}
+	return &TelegramConfig{BotToken: token, ChatID: chatID}
+}
