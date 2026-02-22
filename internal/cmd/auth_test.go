@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blanxlait/krocli/internal/config"
 	"github.com/blanxlait/krocli/internal/telegram"
 )
 
@@ -182,5 +183,40 @@ func TestSendViaTelegram_TelegramAPIError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "blocked") {
 		t.Errorf("error = %q, want blocked message", err.Error())
+	}
+}
+
+func TestSendViaTelegram_OpenClawIntegration(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+	t.Setenv(config.OpenClawEnvBotToken, "openclaw-bot:secret")
+	t.Setenv(config.OpenClawEnvChatID, "55555")
+
+	var receivedChatID, receivedText string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		receivedChatID = r.FormValue("chat_id")
+		receivedText = r.FormValue("text")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	origClient := telegram.HTTPClient
+	telegram.HTTPClient = srv.Client()
+	t.Cleanup(func() { telegram.HTTPClient = origClient })
+
+	origBase := telegram.BaseURL
+	telegram.BaseURL = srv.URL
+	t.Cleanup(func() { telegram.BaseURL = origBase })
+
+	if err := sendViaTelegram("https://example.com/login"); err != nil {
+		t.Fatalf("sendViaTelegram: %v", err)
+	}
+	if receivedChatID != "55555" {
+		t.Errorf("chat_id = %q, want %q", receivedChatID, "55555")
+	}
+	if !strings.Contains(receivedText, "https://example.com/login") {
+		t.Errorf("text = %q, want login URL", receivedText)
 	}
 }

@@ -45,14 +45,19 @@ func (c *AuthLoginCmd) Run(flags *RootFlags) error {
 var stdinReader = func() *bufio.Reader { return bufio.NewReader(os.Stdin) }
 
 func sendViaTelegram(loginURL string) error {
-	cfg, err := config.LoadTelegramConfig()
-	if err != nil {
-		if !errors.Is(err, config.ErrNoTelegramConfig) {
-			return fmt.Errorf("load telegram config: %w", err)
-		}
-		cfg, err = promptAndSaveTelegramConfig()
+	// Use OpenClaw native integration when env vars are present.
+	cfg := config.OpenClawIntegration()
+	if cfg == nil {
+		var err error
+		cfg, err = config.LoadTelegramConfig()
 		if err != nil {
-			return fmt.Errorf("telegram configuration: %w", err)
+			if !errors.Is(err, config.ErrNoTelegramConfig) {
+				return fmt.Errorf("load telegram config: %w", err)
+			}
+			cfg, err = promptAndSaveTelegramConfig()
+			if err != nil {
+				return fmt.Errorf("telegram configuration: %w", err)
+			}
 		}
 	}
 
