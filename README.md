@@ -16,31 +16,28 @@ make build    # → bin/krocli
 
 ## Setup
 
-### 1. Create a Kroger Developer App
+krocli works out of the box — no Kroger developer account required. It uses a hosted OAuth proxy so you can start searching immediately.
 
-1. Go to [developer.kroger.com](https://developer.kroger.com/) and sign in (or create an account).
-2. Navigate to **My Apps** and click **Create App**.
-3. Fill in the app details:
-   - **App Name**: anything you like (e.g. "krocli")
-   - **Scopes**: enable `product.compact`, `cart.basic:write`, and `profile.compact`
-   - **Redirect URI**: `http://localhost:8080/callback` (required for `auth login`)
-4. After creation, note your **Client ID** and **Client Secret**.
-
-### 2. Import Credentials
-
-Create a JSON file with your credentials:
-
-```json
-{"client_id": "YOUR_CLIENT_ID", "client_secret": "YOUR_CLIENT_SECRET"}
+```bash
+krocli products search --term "milk"    # Just works
+krocli auth login                       # Browser login for cart/profile
+krocli auth status                      # Shows "Mode: hosted"
 ```
 
-Then import:
+### Bring Your Own Credentials (optional)
+
+If you prefer to use your own Kroger developer app:
+
+1. Go to [developer.kroger.com](https://developer.kroger.com/) and create an app.
+   - **Scopes**: `product.compact`, `cart.basic:write`, `profile.compact`
+   - **Redirect URI**: `http://localhost:8080/callback`
+2. Import your credentials:
 
 ```bash
 krocli auth credentials set /path/to/creds.json
 ```
 
-Credentials are stored at `~/.config/krocli/credentials.json`. Tokens are stored in your OS keyring.
+This switches krocli to **local mode**, talking directly to the Kroger API. Remove `~/.config/krocli/credentials.json` to switch back to hosted mode.
 
 ## Authentication
 
@@ -51,7 +48,7 @@ There are two auth modes:
 
 ```bash
 krocli auth login       # Browser OAuth → stores refresh token
-krocli auth status      # Show current auth state
+krocli auth status      # Show current auth state and mode (hosted/local)
 ```
 
 ## Usage
