@@ -1,0 +1,56 @@
+name: Publish Skill
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'SKILL.md'
+      - '_meta.json'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install ClawHub CLI
+        run: npm install -g clawhub
+
+      - name: Authenticate
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: clawhub auth login --token "$CLAWHUB_TOKEN" --no-browser
+
+      - name: Bump patch version and publish
+        run: |
+          VERSION=$(node -p "require('./_meta.json').latest.version")
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+
+          node -e "
+            const fs = require('fs');
+            const meta = JSON.parse(fs.readFileSync('_meta.json', 'utf8'));
+            meta.history.push({ version: meta.latest.version });
+            meta.latest.version = '${NEW_VERSION}';
+            fs.writeFileSync('_meta.json', JSON.stringify(meta, null, 2) + '\n');
+          "
+
+          clawhub publish . --slug supermarket --version "$NEW_VERSION" --changelog "Auto-publish from CI"
+          echo "Published version $NEW_VERSION"
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add _meta.json
+          git diff --cached --quiet || git commit -m "chore: bump skill version to $(node -p "require('./_meta.json').latest.version") [skip ci]"
+          git push
