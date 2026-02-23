@@ -257,7 +257,7 @@ func hostedClientCredentialsExchange() (*oauth2.Token, error) {
 func hostedLoginFlow(openURL func(string) error) error {
 	sessionID := generateSessionID()
 
-	loginURL := config.ProxyBaseURL + "/authorize?session_id=" + sessionID
+	loginURL := config.ProxyBaseURL + "/authorize?session_id=" + sessionID + "&source=cli"
 
 	ui.Info("Opening browser for Kroger login...")
 	if err := openURL(loginURL); err != nil {

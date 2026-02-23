@@ -40,12 +40,14 @@ export const authorize = onRequest(
     }
 
     const scope = (req.query.scope as string) || "cart.basic:write profile.compact";
+    const source = (req.query.source as string) || "unknown";
     const state = crypto.randomBytes(16).toString("hex");
 
     const db = getFirestore();
     await db.collection("sessions").doc(state).set({
       session_id: sessionId,
       state,
+      source,
       created_at: FieldValue.serverTimestamp(),
     });
 

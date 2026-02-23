@@ -128,7 +128,7 @@ When the user wants to add items to their cart or view their profile, they need 
 Generate a random hex session ID (16-32 characters) and present the login URL to the user as a clickable link:
 
 ```
-https://us-central1-krocli.cloudfunctions.net/authorize?session_id=SESSION_ID
+https://us-central1-krocli.cloudfunctions.net/authorize?session_id=SESSION_ID&source=agent
 ```
 
 Tell the user: **"Click this link to log in to your Kroger account. Once you see 'Login successful', come back here and let me know."**
