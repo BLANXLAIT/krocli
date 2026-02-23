@@ -1,0 +1,2 @@
+# OpenAPI specs contain example JWT tokens (not real secrets)
+openapi/

@@ -8,6 +8,18 @@ const krogerClientId = defineSecret("KROGER_CLIENT_ID");
 
 const KROGER_AUTHORIZE_URL = "https://api.kroger.com/v1/connect/oauth2/authorize";
 const CALLBACK_URL = "https://us-central1-krocli.cloudfunctions.net/callback";
+const VALID_SCOPES = new Set([
+  "product.compact",
+  "cart.basic:write",
+  "profile.compact",
+  "coupon.basic",
+]);
+
+function validateScope(input: string): string {
+  const requested = input.split(/\s+/);
+  const valid = requested.filter((s) => VALID_SCOPES.has(s));
+  return valid.length > 0 ? valid.join(" ") : "cart.basic:write profile.compact";
+}
 
 export const authorize = onRequest(
   {
@@ -39,7 +51,7 @@ export const authorize = onRequest(
       return;
     }
 
-    const scope = (req.query.scope as string) || "cart.basic:write profile.compact";
+    const scope = validateScope((req.query.scope as string) || "cart.basic:write profile.compact");
     const source = (req.query.source as string) || "unknown";
     const state = crypto.randomBytes(16).toString("hex");
 
@@ -52,14 +64,15 @@ export const authorize = onRequest(
     });
 
     const clientId = krogerClientId.value();
-    const params = new URLSearchParams({
+    const redirectUrl = `${KROGER_AUTHORIZE_URL}?` + new URLSearchParams({
       client_id: clientId,
       redirect_uri: CALLBACK_URL,
       response_type: "code",
       scope,
       state,
-    });
+    }).toString();
 
-    res.redirect(`${KROGER_AUTHORIZE_URL}?${params.toString()}`);
+    // nosemgrep: javascript.express.web.tainted-redirect-express.tainted-redirect-express
+    res.redirect(redirectUrl);
   }
 );
