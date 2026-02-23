@@ -1,6 +1,6 @@
 # krocli
 
-Kroger API CLI tool built with Go + Kong.
+Kroger-family grocery CLI + OpenClaw skill. Covers all Kroger-owned banners: Kroger, Ralphs, Fred Meyer, Harris Teeter, King Soopers, Fry's, QFC, Mariano's, Pick 'n Save, etc.
 
 ## Build & Run
 ```bash
@@ -15,3 +15,9 @@ make lint         # golangci-lint
 - Tokens stored in OS keyring via 99designs/keyring
 - Credentials in `~/.config/krocli/credentials.json`
 - Output: `-j` JSON, `-p` plain/TSV, default human-friendly to stderr
+
+## OpenClaw Skill
+- Published on ClawHub as `supermarket` (slug: `supermarket`, owner: `niemesrw`)
+- Install: `clawhub install supermarket`
+- Skill source: `SKILL.md` (frontmatter + API instructions)
+- Metadata: `_meta.json`

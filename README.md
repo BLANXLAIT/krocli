@@ -1,6 +1,6 @@
 # krocli
 
-CLI tool for the [Kroger API](https://developer.kroger.com/).
+CLI and [OpenClaw](https://openclaw.com) skill for the [Kroger API](https://developer.kroger.com/). Works with all Kroger-family stores: Kroger, Ralphs, Fred Meyer, Harris Teeter, King Soopers, Fry's, QFC, Mariano's, Pick 'n Save, and more.
 
 ## Install
 
@@ -92,6 +92,16 @@ krocli identity profile
 | `-p` | Plain/TSV | stdout |
 
 Pipe-friendly: `krocli -j products search --term "eggs" | jq '.data[].description'`
+
+## OpenClaw Skill
+
+This repo is also published as an OpenClaw skill on ClawHub. No CLI install needed — any LLM agent with OpenClaw learns the Kroger API directly.
+
+```bash
+clawhub install supermarket
+```
+
+Then ask things like "search for organic milk at Ralphs" or "find King Soopers near 80202" and the skill handles it via the hosted proxy.
 
 ## Development
 

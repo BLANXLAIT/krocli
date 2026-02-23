@@ -1,28 +1,35 @@
 ---
-name: kroger
-description: Search Kroger grocery products, find store locations, add items to cart, and view profile. Use when user asks about groceries, food shopping, Kroger products, store locations, or wants to add items to their Kroger cart.
+name: supermarket
+description: Search grocery products, find store locations, add items to cart, and view profile across all Kroger-family stores — Kroger, Ralphs, Fred Meyer, Harris Teeter, King Soopers, Fry's, QFC, Mariano's, Pick 'n Save, Metro Market, and more. Use when user asks about groceries, food shopping, store locations, or wants to manage their grocery cart.
 user-invocable: true
 read_when:
   - User asks about grocery products or food items
-  - User wants to search for products at Kroger
-  - User asks about Kroger store locations
-  - User wants to add items to their Kroger cart
-  - User mentions Kroger, grocery shopping, or food prices
+  - User wants to search for products at a supermarket or grocery store
+  - User asks about store locations for Kroger, Ralphs, Fred Meyer, Harris Teeter, King Soopers, Fry's, QFC, Mariano's, or Pick 'n Save
+  - User wants to add items to their grocery cart
+  - User mentions Kroger, Ralphs, Fred Meyer, Harris Teeter, King Soopers, Fry's, grocery shopping, or food prices
 triggers:
   - search kroger
+  - search ralphs
+  - search fred meyer
+  - search harris teeter
+  - search king soopers
+  - search frys
   - find grocery
   - kroger products
+  - ralphs products
   - add to cart
-  - kroger stores
+  - grocery stores
   - grocery list
   - food prices
+  - supermarket
   - kroger locations
   - kroger login
 ---
 
-# Kroger Skill
+# Supermarket Skill
 
-Search Kroger products, find stores, add to cart, and view profile — all through the Kroger API via a hosted OAuth proxy. No API keys or developer accounts needed.
+Search grocery products, find stores, add to cart, and view your profile across all Kroger-family stores (Kroger, Ralphs, Fred Meyer, Harris Teeter, King Soopers, Fry's, QFC, Mariano's, Pick 'n Save, and more) — all through the Kroger API via a hosted OAuth proxy. No API keys or developer accounts needed.
 
 ## Architecture
 
