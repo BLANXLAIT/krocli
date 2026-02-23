@@ -1,5 +1,9 @@
 # krocli
 
+[![CI](https://github.com/BLANXLAIT/krocli/actions/workflows/ci.yml/badge.svg)](https://github.com/BLANXLAIT/krocli/actions/workflows/ci.yml)
+[![Deploy](https://github.com/BLANXLAIT/krocli/actions/workflows/firebase-deploy.yml/badge.svg)](https://github.com/BLANXLAIT/krocli/actions/workflows/firebase-deploy.yml)
+[![Semgrep](https://github.com/BLANXLAIT/krocli/actions/workflows/semgrep.yml/badge.svg)](https://github.com/BLANXLAIT/krocli/actions/workflows/semgrep.yml)
+
 CLI and [OpenClaw](https://openclaw.com) skill for the [Kroger API](https://developer.kroger.com/). Works with all Kroger-family stores: Kroger, Ralphs, Fred Meyer, Harris Teeter, King Soopers, Fry's, QFC, Mariano's, Pick 'n Save, and more.
 
 ## Install
