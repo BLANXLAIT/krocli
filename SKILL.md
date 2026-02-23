@@ -31,9 +31,29 @@ triggers:
 
 Search grocery products, find stores, add to cart, and view your profile across all Kroger-family stores (Kroger, Ralphs, Fred Meyer, Harris Teeter, King Soopers, Fry's, QFC, Mariano's, Pick 'n Save, and more) — all through the Kroger API via a hosted OAuth proxy. No API keys or developer accounts needed.
 
+## How This Works (Transparency)
+
+This skill uses a **hosted OAuth proxy** at `us-central1-krocli.cloudfunctions.net` to handle Kroger API authentication. Here's what it does and doesn't do:
+
+**What the proxy handles:**
+- Stores the Kroger client_id/client_secret (as Firebase secrets — never exposed to the agent)
+- Exchanges authorization codes for tokens during login
+- Refreshes expired user tokens
+
+**Privacy guarantees (verifiable in source):**
+- User tokens are **deleted from Firestore immediately** after being returned to the agent (`tokenUser.ts:44`)
+- Login sessions **expire after 5 minutes** (`callback.ts:10`)
+- Firestore rules **deny all direct client access** — only server-side Cloud Functions can read/write
+- No tokens are logged — only errors use `console.error`
+- The proxy never sees your Kroger username or password (that goes directly to Kroger's OAuth page)
+
+**Full source code:** The proxy is open source at `firebase/functions/src/` in the [krocli repository](https://github.com/BLANXLAIT/krocli). You can audit every function: `authorize.ts`, `callback.ts`, `tokenClient.ts`, `tokenUser.ts`, `tokenRefresh.ts`.
+
+**If you don't trust the hosted proxy**, see "Self-Hosting" at the bottom of this document.
+
 ## Architecture
 
-All API calls go through a hosted proxy at `https://us-central1-krocli.cloudfunctions.net` which handles OAuth credentials. The agent never needs a client_id or client_secret.
+All API calls go through the hosted proxy which handles OAuth credentials. The agent never needs a client_id or client_secret.
 
 **Two token types:**
 - **Client token** — for public data (products, locations). Obtained automatically.
@@ -218,3 +238,57 @@ Response includes new `access_token` and `refresh_token`. Cache both.
 1. Get client token
 2. Search locations with `filter.zipCode.near=90210`
 3. Format results with name, address, hours
+
+## Token Persistence
+
+After a successful user login, save the refresh token and preferred ZIP code to your long-term memory so the user doesn't have to log in again next session.
+
+**After login, remember:**
+- `kroger_refresh_token`: the refresh_token from the login flow
+- `kroger_zip_code`: the user's preferred ZIP code (if provided)
+- `kroger_store_id`: the user's preferred store locationId (if identified)
+
+**At the start of a session**, check your memory for a saved `kroger_refresh_token`. If found:
+1. Call `POST /tokenRefresh` with the saved refresh_token
+2. If it succeeds, use the new access_token — no login needed
+3. If it fails (e.g. token revoked), clear the saved token and start a fresh login flow
+
+**Important:** Only save the refresh_token, never the access_token (it expires in 30 minutes and is useless to persist).
+
+## Self-Hosting the Proxy
+
+If you prefer not to use the hosted proxy, you can run your own. The full source is in the [krocli repo](https://github.com/BLANXLAIT/krocli) under `firebase/`.
+
+### Option 1: Deploy your own Firebase proxy
+
+1. Create a Kroger developer app at [developer.kroger.com](https://developer.kroger.com/)
+   - **Scopes**: `product.compact`, `cart.basic:write`, `profile.compact`
+   - **Redirect URI**: `https://YOUR-PROJECT.cloudfunctions.net/callback`
+2. Clone the repo and set up Firebase:
+   ```bash
+   git clone https://github.com/BLANXLAIT/krocli.git
+   cd krocli/firebase
+   firebase init
+   firebase functions:secrets:set KROGER_CLIENT_ID
+   firebase functions:secrets:set KROGER_CLIENT_SECRET
+   ```
+3. Update `CALLBACK_URL` in `callback.ts` and `authorize.ts` to point to your project
+4. Deploy:
+   ```bash
+   firebase deploy --only functions,firestore:rules
+   ```
+5. Replace all `us-central1-krocli.cloudfunctions.net` URLs in this skill with your own project URL
+
+### Option 2: Use the krocli CLI directly (no proxy at all)
+
+If you have Go installed, you can skip the proxy entirely:
+
+```bash
+go install github.com/blanxlait/krocli/cmd/krocli@latest
+krocli auth credentials set /path/to/your/kroger-creds.json
+krocli products search --term "milk"
+krocli auth login   # browser OAuth, tokens stored in OS keyring
+krocli cart add --upc 0011110838049
+```
+
+In this mode, all API calls go directly to `api.kroger.com` using your own credentials. No proxy involved. Tokens are stored locally in your OS keyring.
