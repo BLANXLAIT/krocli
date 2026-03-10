@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"io"
 	"net"
 	"net/http"
@@ -193,7 +194,8 @@ func LoginFlow(creds *config.Credentials, openURL func(string) error) error {
 			http.Error(w, "no code", http.StatusBadRequest)
 			return
 		}
-		_, _ = fmt.Fprintf(w, "<html><body><h1>Success!</h1><p>You can close this tab.</p></body></html>")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_ = callbackTmpl.Execute(w, nil)
 		codeCh <- code
 	})
 
@@ -355,6 +357,149 @@ func generateSessionID() string {
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }
+
+var callbackTmpl = template.Must(template.New("callback").Parse(callbackHTML))
+
+const callbackHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>krocli — Logged In</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #0f1117;
+    color: #e1e4e8;
+    display: flex;
+    justify-content: center;
+    padding: 3rem 1rem;
+    line-height: 1.6;
+  }
+  .container { max-width: 640px; width: 100%; }
+  .card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 2.5rem;
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  .checkmark {
+    width: 64px; height: 64px;
+    margin: 0 auto 1.25rem;
+    background: #238636;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pop 0.4s ease;
+  }
+  @keyframes pop {
+    0% { transform: scale(0); }
+    70% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  .checkmark svg { width: 32px; height: 32px; }
+  h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem; }
+  .subtitle { color: #8b949e; font-size: 0.95rem; }
+  h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #c9d1d9;
+    text-align: left;
+  }
+  .commands {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: left;
+  }
+  .cmd-group { margin-bottom: 1.25rem; }
+  .cmd-group:last-child { margin-bottom: 0; }
+  .cmd-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #8b949e;
+    margin-bottom: 0.4rem;
+  }
+  .cmd {
+    background: #0d1117;
+    border: 1px solid #21262d;
+    border-radius: 6px;
+    padding: 0.6rem 0.85rem;
+    font-family: "SF Mono", "Fira Code", "Fira Mono", Menlo, monospace;
+    font-size: 0.85rem;
+    color: #79c0ff;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .cmd .flag { color: #d2a8ff; }
+  .cmd .str { color: #a5d6ff; }
+  .cmd .comment { color: #8b949e; }
+  .close-hint {
+    text-align: center;
+    color: #484f58;
+    font-size: 0.8rem;
+    margin-top: 1.5rem;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="card">
+    <div class="checkmark">
+      <svg fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="3">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+      </svg>
+    </div>
+    <h1>You&#39;re logged in!</h1>
+    <p class="subtitle">krocli is authenticated with your Kroger account.</p>
+  </div>
+
+  <div class="commands">
+    <h2>What you can do now</h2>
+
+    <div class="cmd-group">
+      <div class="cmd-label">Search products</div>
+      <div class="cmd">krocli products search <span class="str">"organic milk"</span></div>
+    </div>
+
+    <div class="cmd-group">
+      <div class="cmd-label">Find nearby stores</div>
+      <div class="cmd">krocli locations search <span class="flag">--near</span> <span class="str">"45202"</span></div>
+    </div>
+
+    <div class="cmd-group">
+      <div class="cmd-label">View your cart</div>
+      <div class="cmd">krocli cart list</div>
+    </div>
+
+    <div class="cmd-group">
+      <div class="cmd-label">Add to cart</div>
+      <div class="cmd">krocli cart add <span class="flag">--upc</span> <span class="str">0001111042010</span> <span class="flag">--qty</span> 2</div>
+    </div>
+
+    <div class="cmd-group">
+      <div class="cmd-label">Check your profile</div>
+      <div class="cmd">krocli identity profile</div>
+    </div>
+
+    <div class="cmd-group">
+      <div class="cmd-label">Output as JSON</div>
+      <div class="cmd">krocli <span class="flag">-j</span> products search <span class="str">"bread"</span> <span class="comment"># pipe to jq, etc.</span></div>
+    </div>
+  </div>
+
+  <p class="close-hint">You can close this tab and return to your terminal.</p>
+</div>
+</body>
+</html>`
 
 func AuthStatus() (clientOK, userOK bool) {
 	if td, err := secrets.LoadToken(tokenKeyClient); err == nil && td.Expiry.After(time.Now()) {
