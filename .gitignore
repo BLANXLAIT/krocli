@@ -1,3 +1,4 @@
 bin/
 /krocli
 .DS_Store
+firebase-debug.log
